@@ -1,0 +1,228 @@
+# =============================================================================
+# ReconForge - Example Configuration File
+# =============================================================================
+# Copy this file to config.yaml and modify as needed
+
+version: "4.0.0"
+
+# =============================================================================
+# SCAN CONFIGURATION
+# =============================================================================
+scan:
+  # Scan profile: quick, standard, full, stealth
+  profile: standard
+  
+  # Number of concurrent threads
+  threads: 50
+  
+  # Enable deep scan mode (port scanning, screenshots, etc.)
+  deep_mode: false
+  
+  # Timeout in seconds for each request
+  timeout: 30
+  
+  # Number of retries on failure
+  retries: 3
+  
+  # Rate limit (requests per second)
+  rate_limit: 10
+
+# =============================================================================
+# RATE LIMITING PRESETS
+# =============================================================================
+rate:
+  # Balanced - good for most targets
+  default: 50
+  
+  # Fast - for targets without rate limiting
+  aggressive: 100
+  
+  # Slow - to avoid detection/rate limiting
+  stealth: 10
+
+# =============================================================================
+# API INTEGRATIONS (Optional - Add your keys)
+# =============================================================================
+api:
+  # Chaos ProjectDiscovery API Key
+  # Get from: https://cloud.projectdiscovery.io/
+  chaos_key: ""
+  
+  # GitHub Personal Access Token
+  # Get from: https://github.com/settings/tokens
+  github_token: ""
+  
+  # Shodan API Key
+  # Get from: https://account.shodan.io/
+  shodan_key: ""
+  
+  # Censys API Credentials
+  # Get from: https://search.censys.io/
+  censys_key: ""
+  censys_secret: ""
+  
+  # SecurityTrails API Key
+  # Get from: https://securitytrails.com/
+  securitytrails_key: ""
+  
+  # VirusTotal API Key
+  # Get from: https://www.virustotal.com/
+  virustotal_key: ""
+
+# =============================================================================
+# TOOL CONFIGURATION
+# =============================================================================
+tools:
+  # Tool versions (pinned for reproducibility)
+  subfinder_version: "2.14.0"
+  nuclei_version: "3.1.0"
+  httpx_version: "1.3.8"
+  
+  # Wordlist paths
+  wordlists:
+    - "/usr/share/wordlists/subdomains.txt"
+    - "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
+    - "/usr/share/wordlists/dirb/common.txt"
+  
+  # DNS resolvers
+  resolvers:
+    - "1.1.1.1"      # Cloudflare
+    - "8.8.8.8"      # Google
+    - "9.9.9.9"      # Quad9
+    - "208.67.222.222" # OpenDNS
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  # Output directory (auto-generated if empty)
+  directory: ""
+  
+  # Enable JSON output
+  json: false
+  
+  # Enable HTML report
+  html: true
+  
+  # Enable Markdown report
+  markdown: true
+  
+  # Save screenshots (deep mode only)
+  screenshots: true
+  
+  # Compression level for reports (0-9)
+  compression: 6
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+logging:
+  # Log level: debug, info, warn, error
+  level: "info"
+  
+  # Log format: text, json
+  format: "text"
+  
+  # Save logs to file
+  file: true
+  
+  # Log file path
+  file_path: "logs/reconforge.log"
+  
+  # Max log file size in MB
+  max_size: 100
+  
+  # Max number of log files to keep
+  max_backups: 5
+
+# =============================================================================
+# ADVANCED CONFIGURATION
+# =============================================================================
+advanced:
+  # Enable DNS brute forcing
+  dns_brute: false
+  
+  # Enable recursive enumeration
+  recursive: false
+  
+  # Maximum recursion depth
+  max_depth: 3
+  
+  # Enable JS endpoint extraction
+  js_extraction: true
+  
+  # Enable cloud bucket detection
+  cloud_detection: true
+  
+  # Enable subdomain takeover detection
+  takeover_detection: true
+  
+  # Enable WAF detection
+  waf_detection: true
+  
+  # Enable favicon hashing
+  favicon_hashing: false
+
+# =============================================================================
+# DISTRIBUTED SCANNING (Beta)
+# =============================================================================
+distributed:
+  # Enable distributed mode
+  enabled: false
+  
+  # Node role: master, worker
+  role: "master"
+  
+  # Redis server address
+  redis_addr: "localhost:6379"
+  
+  # Redis password (if any)
+  redis_password: ""
+  
+  # Number of worker nodes
+  workers: 3
+  
+  # Job queue size
+  queue_size: 1000
+
+# =============================================================================
+# PROXY CONFIGURATION (Optional)
+# =============================================================================
+proxy:
+  # Enable proxy
+  enabled: false
+  
+  # Proxy URL (http://user:pass@host:port)
+  url: ""
+  
+  # Proxy list file for rotation
+  list_file: ""
+  
+  # Rotate proxy every N requests
+  rotate_interval: 100
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+notifications:
+  # Enable notifications
+  enabled: false
+  
+  # Webhook URL for findings
+  webhook_url: ""
+  
+  # Slack webhook
+  slack_webhook: ""
+  
+  # Discord webhook
+  discord_webhook: ""
+  
+  # Email settings
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    from: "reconforge@example.com"
+    to: "admin@example.com"
+    username: ""
+    password: ""

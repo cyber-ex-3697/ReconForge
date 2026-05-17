@@ -1,0 +1,62 @@
+# =============================================================================
+# ReconForge - Kubernetes Service
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: reconforge
+  namespace: reconforge
+  labels:
+    app: reconforge
+spec:
+  selector:
+    app: reconforge
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  type: ClusterIP
+
+---
+# =============================================================================
+# LoadBalancer Service (External Access)
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: reconforge-lb
+  namespace: reconforge
+  labels:
+    app: reconforge
+    type: loadbalancer
+spec:
+  selector:
+    app: reconforge
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer
+
+---
+# =============================================================================
+# Headless Service for StatefulSet (Optional)
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: reconforge-headless
+  namespace: reconforge
+spec:
+  clusterIP: None
+  selector:
+    app: reconforge
+  ports:
+  - port: 8080
+    targetPort: 8080
