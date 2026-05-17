@@ -11,6 +11,8 @@ import (
     "strings"
     "syscall"
     "time"
+
+    "reconforge/pkg/api"
 )
 
 var version = "4.0.0"
@@ -26,12 +28,26 @@ type ScanResult struct {
     EndTime        time.Time
 }
 
+// Config holds API keys from config file
+type Config struct {
+    API struct {
+        ChaosKey         string `yaml:"chaos_key"`
+        GitHubToken      string `yaml:"github_token"`
+        ShodanKey        string `yaml:"shodan_key"`
+        CensysKey        string `yaml:"censys_key"`
+        CensysSecret     string `yaml:"censys_secret"`
+        SecurityTrailsKey string `yaml:"securitytrails_key"`
+        VirusTotalKey    string `yaml:"virustotal_key"`
+    } `yaml:"api"`
+}
+
 func main() {
     var target string
     var deep bool
     var threads int
     var outputDir string
     var showVersion bool
+    var configFile string
 
     flag.StringVar(&target, "t", "", "Target domain (required)")
     flag.StringVar(&target, "target", "", "Target domain (required)")
@@ -39,6 +55,7 @@ func main() {
     flag.IntVar(&threads, "T", 50, "Number of threads for concurrent scanning")
     flag.StringVar(&outputDir, "o", "", "Custom output directory")
     flag.BoolVar(&showVersion, "version", false, "Show version")
+    flag.StringVar(&configFile, "c", "config.yaml", "Config file path")
     flag.Parse()
 
     if showVersion {
@@ -54,6 +71,7 @@ func main() {
         fmt.Println("  -d, --deep       Deep scan mode")
         fmt.Println("  -T, --threads    Number of threads (default: 50)")
         fmt.Println("  -o, --output     Custom output directory")
+        fmt.Println("  -c, --config     Config file path (default: config.yaml)")
         fmt.Println("  --version        Show version")
         fmt.Println("\nExamples:")
         fmt.Println("  ./reconforge -t example.com")
@@ -74,6 +92,9 @@ func main() {
         outputDir = fmt.Sprintf("recon_%s_%s", target, timestamp)
     }
     os.MkdirAll(outputDir, 0755)
+
+    // Load config and initialize API client
+    apiClient := loadAPIClient(configFile)
 
     // Setup signal handling for graceful shutdown
     sigChan := make(chan os.Signal, 1)
@@ -98,10 +119,10 @@ func main() {
     }
 
     // =============================================
-    // PHASE 1: Subdomain Enumeration
+    // PHASE 1: Subdomain Enumeration (Local + APIs)
     // =============================================
     fmt.Println("\n📡 PHASE 1: Subdomain Enumeration")
-    result.Subdomains = enumerateSubdomains(target)
+    result.Subdomains = enumerateSubdomainsWithAPI(target, apiClient)
     fmt.Printf("  ✅ Found %d unique subdomains\n", len(result.Subdomains))
     saveToFile(outputDir+"/subdomains.txt", result.Subdomains)
 
@@ -156,34 +177,54 @@ func main() {
     fmt.Println()
 }
 
-func printBanner() {
-    fmt.Print("\033[36m")
-    fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-    fmt.Println("║                                                                  ║")
-    fmt.Println("║   ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗███████╗ ██████╗    ║")
-    fmt.Println("║   ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║██╔════╝██╔═══██╗   ║")
-    fmt.Println("║   ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║█████╗  ██║   ██║   ║")
-    fmt.Println("║   ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║██╔══╝  ██║   ██║   ║")
-    fmt.Println("║   ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║██║     ╚██████╔╝   ║")
-    fmt.Println("║   ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝      ╚═════╝    ║")
-    fmt.Println("║                                                                  ║")
-    fmt.Println("║                    ENTERPRISE RECONNAISSANCE                    ║")
-    fmt.Println("║                         CODED BY : UMAR RUMAN                    ║")
-    fmt.Println("║                      [ CYBER EX STUDY ]                         ║")
-    fmt.Println("║                                                                  ║")
-    fmt.Println("║              ⚠️  FOR AUTHORIZED USE ONLY  ⚠️                      ║")
-    fmt.Println("║                                                                  ║")
-    fmt.Println("║         📱 INSTAGRAM : @CYBER_EX_3697                            ║")
-    fmt.Println("║         ▶️ YOUTUBE  : /@CyberEX3697                              ║")
-    fmt.Println("║         💻 GITHUB  : /cyber-ex-3697                             ║")
-    fmt.Println("║                                                                  ║")
-    fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
-    fmt.Print("\033[0m")
+func loadAPIClient(configFile string) *api.APIClient {
+    client := api.NewAPIClient()
+    
+    // Try to read config file
+    data, err := os.ReadFile(configFile)
+    if err != nil {
+        fmt.Println("  ⚠️  Config file not found, API integrations disabled")
+        return client
+    }
+    
+    // Parse YAML (simple parsing without external libs)
+    lines := strings.Split(string(data), "\n")
+    for _, line := range lines {
+        line = strings.TrimSpace(line)
+        if strings.HasPrefix(line, "chaos_key:") {
+            key := strings.TrimSpace(strings.TrimPrefix(line, "chaos_key:"))
+            key = strings.Trim(key, "\"")
+            if key != "" {
+                client.SetAPIKey("chaos", key)
+                fmt.Println("  ✅ Chaos API enabled")
+            }
+        } else if strings.HasPrefix(line, "github_token:") {
+            token := strings.TrimSpace(strings.TrimPrefix(line, "github_token:"))
+            token = strings.Trim(token, "\"")
+            if token != "" {
+                client.SetAPIKey("github", token)
+                fmt.Println("  ✅ GitHub API enabled")
+            }
+        } else if strings.HasPrefix(line, "shodan_key:") {
+            key := strings.TrimSpace(strings.TrimPrefix(line, "shodan_key:"))
+            key = strings.Trim(key, "\"")
+            if key != "" {
+                client.SetAPIKey("shodan", key)
+                fmt.Println("  ✅ Shodan API enabled")
+            }
+        }
+    }
+    
+    return client
 }
 
-func enumerateSubdomains(target string) []string {
+func enumerateSubdomainsWithAPI(target string, apiClient *api.APIClient) []string {
     subdomains := make(map[string]bool)
 
+    // =============================================
+    // LOCAL TOOLS
+    // =============================================
+    
     // Tool 1: subfinder
     fmt.Print("  🔍 Running subfinder... ")
     cmd := exec.Command("subfinder", "-d", target, "-silent")
@@ -227,6 +268,68 @@ func enumerateSubdomains(target string) []string {
         fmt.Println("✅")
     } else {
         fmt.Println("❌ (not installed)")
+    }
+
+    // =============================================
+    // API INTEGRATIONS
+    // =============================================
+    
+    // Chaos API
+    chaosKey := apiClient.GetAPIKey("chaos")
+    if chaosKey != "" {
+        fmt.Print("  ☁️  Running Chaos API... ")
+        chaosSubs, err := apiClient.GetChaosSubdomains(target)
+        if err == nil {
+            for _, s := range chaosSubs {
+                if s != "" {
+                    subdomains[s] = true
+                }
+            }
+            fmt.Printf("✅ (+%d)\n", len(chaosSubs))
+        } else {
+            fmt.Printf("❌ (%v)\n", err)
+        }
+    } else {
+        fmt.Print("  ☁️  Chaos API... ⚠️ (key not configured)\n")
+    }
+
+    // Shodan API
+    shodanKey := apiClient.GetAPIKey("shodan")
+    if shodanKey != "" {
+        fmt.Print("  🌍 Running Shodan API... ")
+        shodanHosts, err := apiClient.GetShodanHosts(target)
+        if err == nil {
+            for _, h := range shodanHosts {
+                if h != "" && strings.Contains(h, target) {
+                    subdomains[h] = true
+                }
+            }
+            fmt.Printf("✅ (+%d)\n", len(shodanHosts))
+        } else {
+            fmt.Printf("❌ (%v)\n", err)
+        }
+    } else {
+        fmt.Print("  🌍 Shodan API... ⚠️ (key not configured)\n")
+    }
+
+    // GitHub API
+    githubToken := apiClient.GetAPIKey("github")
+    if githubToken != "" {
+        fmt.Print("  💻 Running GitHub API... ")
+        githubURLs, err := apiClient.GetGitHubSubdomains(target)
+        if err == nil {
+            for _, u := range githubURLs {
+                // Extract domain from URL
+                if strings.Contains(u, target) {
+                    subdomains[u] = true
+                }
+            }
+            fmt.Printf("✅ (+%d)\n", len(githubURLs))
+        } else {
+            fmt.Printf("❌ (%v)\n", err)
+        }
+    } else {
+        fmt.Print("  💻 GitHub API... ⚠️ (token not configured)\n")
     }
 
     // Convert map to slice
@@ -330,13 +433,13 @@ func saveToFile(filename string, data []string) {
 
 func generateJSONReport(outputDir string, result *ScanResult) {
     report := map[string]interface{}{
-        "target":         result.Target,
-        "start_time":     result.StartTime,
-        "end_time":       result.EndTime,
-        "duration":       result.EndTime.Sub(result.StartTime).String(),
-        "subdomains":     len(result.Subdomains),
-        "live_hosts":     len(result.LiveHosts),
-        "urls":           len(result.URLs),
+        "target":          result.Target,
+        "start_time":      result.StartTime,
+        "end_time":        result.EndTime,
+        "duration":        result.EndTime.Sub(result.StartTime).String(),
+        "subdomains":      len(result.Subdomains),
+        "live_hosts":      len(result.LiveHosts),
+        "urls":            len(result.URLs),
         "vulnerabilities": len(result.Vulnerabilities),
     }
     data, _ := json.MarshalIndent(report, "", "  ")
@@ -396,4 +499,29 @@ func generateHTMLReport(outputDir string, result *ScanResult) {
     )
     os.WriteFile(outputDir+"/report.html", []byte(htmlContent), 0644)
     fmt.Printf("  ✅ HTML report: %s/report.html\n", outputDir)
+}
+
+func printBanner() {
+    fmt.Print("\033[36m")
+    fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
+    fmt.Println("║                                                                  ║")
+    fmt.Println("║   ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗███████╗ ██████╗    ║")
+    fmt.Println("║   ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║██╔════╝██╔═══██╗   ║")
+    fmt.Println("║   ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║█████╗  ██║   ██║   ║")
+    fmt.Println("║   ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║██╔══╝  ██║   ██║   ║")
+    fmt.Println("║   ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║██║     ╚██████╔╝   ║")
+    fmt.Println("║   ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝      ╚═════╝    ║")
+    fmt.Println("║                                                                  ║")
+    fmt.Println("║                    ENTERPRISE RECONNAISSANCE                    ║")
+    fmt.Println("║                         CODED BY : UMAR RUMAN                    ║")
+    fmt.Println("║                      [ CYBER EX STUDY ]                         ║")
+    fmt.Println("║                                                                  ║")
+    fmt.Println("║              ⚠️  FOR AUTHORIZED USE ONLY  ⚠️                      ║")
+    fmt.Println("║                                                                  ║")
+    fmt.Println("║         📱 INSTAGRAM : @CYBER_EX_3697                            ║")
+    fmt.Println("║         ▶️ YOUTUBE  : /@CyberEX3697                              ║")
+    fmt.Println("║         💻 GITHUB  : /cyber-ex-3697                             ║")
+    fmt.Println("║                                                                  ║")
+    fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+    fmt.Print("\033[0m")
 }
