@@ -1,0 +1,28 @@
+version: "4.0.0"
+
+scan:
+  profile: standard
+  threads: 50
+  deep_mode: false
+  timeout: 30
+  retries: 3
+  rate_limit: 10
+
+api:
+  chaos_key: "YOUR_CHAOS_KEY"
+  github_token: "YOUR_GITHUB_TOKEN"
+  shodan_key: "YOUR_SHODAN_KEY"
+  censys_key: "YOUR_CENSYS_ID"
+  censys_secret: "YOUR_CENSYS_SECRET"
+  securitytrails_key: "YOUR_ST_KEY"
+  virustotal_key: "YOUR_VT_KEY"
+
+tools:
+  subfinder_version: "2.14.0"
+  nuclei_version: "3.1.0"
+  httpx_version: "1.3.8"
+  wordlists:
+    - "/usr/share/wordlists/subdomains.txt"
+  resolvers:
+    - "1.1.1.1"
+    - "8.8.8.8"
