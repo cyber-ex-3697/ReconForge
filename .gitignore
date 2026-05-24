@@ -1,0 +1,19 @@
+# Binaries
+reconforge
+*.exe
+
+# Output
+recon_*/
+output/
+logs/
+
+# Config
+config.yaml
+*.local.yaml
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

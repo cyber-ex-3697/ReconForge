@@ -1,0 +1,235 @@
+# =============================================================================
+# ReconForge - Distributed Setup
+# =============================================================================
+# Purpose: Full distributed scanning environment with Redis queue
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------------------
+  # Redis - Message Queue
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: reconforge-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL - Result Storage
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: reconforge-postgres
+    environment:
+      POSTGRES_USER: reconforge
+      POSTGRES_PASSWORD: reconforge
+      POSTGRES_DB: reconforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reconforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # -------------------------------------------------------------------------
+  # Master Node
+  # -------------------------------------------------------------------------
+  master:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.master
+    container_name: reconforge-master
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: reconforge
+      POSTGRES_PASSWORD: reconforge
+      POSTGRES_DB: reconforge
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - master-output:/app/output
+      - master-logs:/app/logs
+      - ../config.yaml:/app/config.yaml:ro
+    command: --master --api --port=8080 --workers=5
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # -------------------------------------------------------------------------
+  # Worker Node 1
+  # -------------------------------------------------------------------------
+  worker1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: reconforge-worker1
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      WORKER_ID: worker-1
+      REDIS_ADDR: redis:6379
+    volumes:
+      - worker1-output:/app/output
+      - worker1-logs:/app/logs
+      - ../config.yaml:/app/config.yaml:ro
+    command: --worker --queue=redis
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 1G
+          cpus: '1'
+
+  # -------------------------------------------------------------------------
+  # Worker Node 2
+  # -------------------------------------------------------------------------
+  worker2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: reconforge-worker2
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      WORKER_ID: worker-2
+      REDIS_ADDR: redis:6379
+    volumes:
+      - worker2-output:/app/output
+      - worker2-logs:/app/logs
+      - ../config.yaml:/app/config.yaml:ro
+    command: --worker --queue=redis
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 1G
+          cpus: '1'
+
+  # -------------------------------------------------------------------------
+  # Worker Node 3
+  # -------------------------------------------------------------------------
+  worker3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: reconforge-worker3
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      WORKER_ID: worker-3
+      REDIS_ADDR: redis:6379
+    volumes:
+      - worker3-output:/app/output
+      - worker3-logs:/app/logs
+      - ../config.yaml:/app/config.yaml:ro
+    command: --worker --queue=redis
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 1G
+          cpus: '1'
+
+  # -------------------------------------------------------------------------
+  # Nginx - Report Server
+  # -------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: reconforge-nginx
+    depends_on:
+      - master
+    ports:
+      - "80:80"
+    volumes:
+      - master-output:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - reconforge-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+# -------------------------------------------------------------------------
+# Networks
+# -------------------------------------------------------------------------
+networks:
+  reconforge-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# -------------------------------------------------------------------------
+# Volumes
+# -------------------------------------------------------------------------
+volumes:
+  redis-data:
+  postgres-data:
+  master-output:
+  master-logs:
+  worker1-output:
+  worker1-logs:
+  worker2-output:
+  worker2-logs:
+  worker3-output:
+  worker3-logs:

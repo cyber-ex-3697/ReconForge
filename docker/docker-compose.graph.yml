@@ -1,0 +1,114 @@
+# =============================================================================
+# ReconForge - Graph Database Setup
+# =============================================================================
+# Purpose: Neo4j graph database for attack path visualization
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------------------
+  # Neo4j - Graph Database
+  # -------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5-enterprise
+    container_name: reconforge-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/reconforge123
+      NEO4J_PLUGINS: '["graph-data-science", "apoc"]'
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      NEO4J_dbms_memory_pagecache_size: 2G
+      NEO4J_dbms_memory_heap_initial__size: 1G
+      NEO4J_dbms_memory_heap_max__size: 4G
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-plugins:/plugins
+      - ../migrations/002_graph_schema.cypher:/import/schema.cypher
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - reconforge-graph-net
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '1'
+
+  # -------------------------------------------------------------------------
+  # GraphQL API for Neo4j
+  # -------------------------------------------------------------------------
+  neo4j-graphql:
+    image: neo4j/graphql:latest
+    container_name: reconforge-neo4j-graphql
+    depends_on:
+      - neo4j
+    environment:
+      NEO4J_URL: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: reconforge123
+    ports:
+      - "4000:4000"
+    networks:
+      - reconforge-graph-net
+
+  # -------------------------------------------------------------------------
+  # Graph Visualization Dashboard
+  # -------------------------------------------------------------------------
+  graphviz:
+    image: nginx:alpine
+    container_name: reconforge-graphviz
+    depends_on:
+      - neo4j-graphql
+    ports:
+      - "3000:80"
+    volumes:
+      - ./graph-dashboard:/usr/share/nginx/html:ro
+    networks:
+      - reconforge-graph-net
+
+  # -------------------------------------------------------------------------
+  # ArangoDB (Alternative to Neo4j)
+  # -------------------------------------------------------------------------
+  arangodb:
+    image: arangodb:latest
+    container_name: reconforge-arangodb
+    environment:
+      ARANGO_ROOT_PASSWORD: reconforge123
+    ports:
+      - "8529:8529"
+    volumes:
+      - arangodb-data:/var/lib/arangodb3
+    networks:
+      - reconforge-graph-net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    profiles:
+      - arangodb
+
+# -------------------------------------------------------------------------
+# Networks
+# -------------------------------------------------------------------------
+networks:
+  reconforge-graph-net:
+    driver: bridge
+
+# -------------------------------------------------------------------------
+# Volumes
+# -------------------------------------------------------------------------
+volumes:
+  neo4j-data:
+  neo4j-logs:
+  neo4j-plugins:
+  arangodb-data:

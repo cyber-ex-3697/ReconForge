@@ -1,0 +1,96 @@
+# =============================================================================
+# ReconForge - Worker Node Dockerfile
+# =============================================================================
+# Purpose: Lightweight worker container for distributed scanning
+# =============================================================================
+
+# Stage 1: Build stage
+FROM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the worker binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o reconforge-worker cmd/worker/main.go
+
+# Stage 2: Runtime stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    bash \
+    curl \
+    wget \
+    nmap \
+    jq \
+    parallel \
+    unzip \
+    && rm -rf /var/cache/apk/*
+
+# Install Go tools (recon tools)
+RUN wget -q https://github.com/projectdiscovery/subfinder/releases/latest/download/subfinder_linux_amd64.zip && \
+    unzip subfinder_linux_amd64.zip && \
+    mv subfinder /usr/local/bin/ && \
+    rm subfinder_linux_amd64.zip
+
+RUN wget -q https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_linux_amd64.zip && \
+    unzip httpx_linux_amd64.zip && \
+    mv httpx /usr/local/bin/ && \
+    rm httpx_linux_amd64.zip
+
+RUN wget -q https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_linux_amd64.zip && \
+    unzip nuclei_linux_amd64.zip && \
+    mv nuclei /usr/local/bin/ && \
+    rm nuclei_linux_amd64.zip
+
+RUN wget -q https://github.com/projectdiscovery/naabu/releases/latest/download/naabu_linux_amd64.zip && \
+    unzip naabu_linux_amd64.zip && \
+    mv naabu /usr/local/bin/ && \
+    rm naabu_linux_amd64.zip
+
+RUN go install github.com/tomnomnom/assetfinder@latest && \
+    cp /root/go/bin/assetfinder /usr/local/bin/ || true
+
+RUN wget -q https://github.com/findomain/findomain/releases/latest/download/findomain-linux.zip && \
+    unzip findomain-linux.zip && \
+    mv findomain /usr/local/bin/ && \
+    rm findomain-linux.zip
+
+RUN wget -q https://github.com/lc/gau/releases/latest/download/gau_linux_amd64.zip && \
+    unzip gau_linux_amd64.zip && \
+    mv gau /usr/local/bin/ && \
+    rm gau_linux_amd64.zip
+
+# Create working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/reconforge-worker .
+
+# Copy config
+COPY config.yaml .
+
+# Create output directory
+RUN mkdir -p /app/output /app/logs
+
+# Set environment variables
+ENV WORKER_ID=""
+ENV REDIS_ADDR="redis:6379"
+ENV REDIS_PASSWORD=""
+
+# Set entrypoint
+ENTRYPOINT ["./reconforge-worker"]
+
+# Default command
+CMD ["--worker"]

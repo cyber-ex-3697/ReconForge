@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   reconforge:
     build: .
@@ -7,22 +6,4 @@ services:
     volumes:
       - ./output:/app/output
       - ./config.yaml:/app/config.yaml
-    environment:
-      - TARGET=${TARGET:-example.com}
-      - DEEP_SCAN=${DEEP_SCAN:-false}
-      - THREADS=${THREADS:-50}
-    command: -t ${TARGET} ${DEEP_SCAN:+-d} -T ${THREADS}
-    restart: "no"
-    network_mode: "host"
-
-  redis:
-    image: redis:alpine
-    container_name: reconforge-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-
-volumes:
-  redis-data:
+    command: -t example.com
